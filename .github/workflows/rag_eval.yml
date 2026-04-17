@@ -1,0 +1,38 @@
+name: RAG Evaluation CI Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  ragas_eval:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run RAGAS Evaluation Suite
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGCHAIN_TRACING_V2: true
+          LANGCHAIN_PROJECT: sec-qa-production
+        run: |
+          # Executes tests/test_ragas_eval.py
+          pytest tests/test_ragas_eval.py -v --tb=short
