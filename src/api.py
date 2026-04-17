@@ -68,9 +68,10 @@ async def chat_endpoint(request: QueryRequest):
 
     return QueryResponse(answer=ans, steps=steps)
 
-# Mount the static web UI
-app.mount("/", StaticFiles(directory="public", html=True), name="public")
-
+# Mount the static web UI for local environments
+import os
+if os.path.isdir("public"):
+    app.mount("/", StaticFiles(directory="public", html=True), name="public")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("src.api:app", host="0.0.0.0", port=8000, reload=True)
