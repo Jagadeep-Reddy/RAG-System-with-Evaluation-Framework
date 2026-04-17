@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production RAG - SEC Analysis</title>
+    <!-- Modern Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Highlight.js for potential code blocks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <h2>RAG<span>Enterprise</span></h2>
+            </div>
+            
+            <div class="nav-menu">
+                <button class="nav-item active">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    SEC 10-K Data
+                </button>
+                <button class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Evaluation Metrics
+                </button>
+                <button class="nav-item">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    Agent Routes
+                </button>
+            </div>
+
+            <div class="index-status">
+                <h3>Vector Index Status</h3>
+                <div class="status-item">
+                    <span>FAISS Dense</span>
+                    <span class="badge success">Active</span>
+                </div>
+                <div class="status-item">
+                    <span>BM25 Sparse</span>
+                    <span class="badge success">Active</span>
+                </div>
+                <div class="status-item">
+                    <span>Reranker</span>
+                    <span class="badge warning">Cross-Encoder</span>
+                </div>
+                <p class="doc-count">102 Documents Chunks Indexed</p>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-wrapper">
+            <header class="chat-header">
+                <div>
+                    <h1>Agentic SEC Explorer</h1>
+                    <p>Compare timelines, request financial syntheses, or track metrics across multiple filings.</p>
+                </div>
+            </header>
+
+            <div class="chat-container" id="chat-box">
+                <!-- Chat messages will be injected here via JS -->
+                <div class="message ai greeting">
+                    <div class="avatar-bot"></div>
+                    <div class="msg-content">
+                        <p>Welcome to the <strong>Enterprise RAG System</strong>. I am hooked into a hybrid-search index covering SEC 10-K Filings. Ask me a complex question!</p>
+                        <div class="suggestion-chips">
+                            <button onclick="setQuery('Compare Apple and Microsoft R&D spending in 2023')">Compare Apple and Microsoft R&D spending in 2023</button>
+                            <button onclick="setQuery('What are the primary risk factors for supply chain disruptions in 2022?')">Risk factors for supply chain 2022?</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <input type="text" id="query-input" placeholder="Ask analytical questions (e.g., How does revenue growth compare between...)">
+                    <button id="send-btn">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+                <div class="footer-note">Citations are strictly enforced. Output powered by GPT-4o + Cross-Encoder Reranking.</div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
