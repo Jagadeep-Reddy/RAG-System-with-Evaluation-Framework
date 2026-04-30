@@ -117,7 +117,7 @@ Conduct the hybrid retrieval pipeline on both sub-queries in parallel. Funnel bo
 ### 1. Requirements
 Ensure Python 3.10+ is installed.
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### 2. Environment Variables
