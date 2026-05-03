@@ -102,3 +102,40 @@ function appendMessage(text, sender) {
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
+
+// Modal Logic
+const btnEval = document.getElementById('btn-eval');
+const btnRoutes = document.getElementById('btn-routes');
+const modalOverlay = document.getElementById('modal-overlay');
+const modalEval = document.getElementById('modal-eval');
+const modalRoutes = document.getElementById('modal-routes');
+const closeBtns = document.querySelectorAll('.close-modal');
+
+function openModal(modal) {
+    if (!modal) return;
+    // Small delay to allow display block to render before opacity transition
+    modalOverlay.style.display = 'block';
+    modal.style.display = 'block';
+    
+    setTimeout(() => {
+        modalOverlay.classList.add('active');
+        modal.classList.add('active');
+    }, 10);
+}
+
+function closeModals() {
+    modalOverlay.classList.remove('active');
+    if (modalEval) modalEval.classList.remove('active');
+    if (modalRoutes) modalRoutes.classList.remove('active');
+    
+    setTimeout(() => {
+        modalOverlay.style.display = 'none';
+        if (modalEval) modalEval.style.display = 'none';
+        if (modalRoutes) modalRoutes.style.display = 'none';
+    }, 300);
+}
+
+if (btnEval) btnEval.addEventListener('click', () => openModal(modalEval));
+if (btnRoutes) btnRoutes.addEventListener('click', () => openModal(modalRoutes));
+if (modalOverlay) modalOverlay.addEventListener('click', closeModals);
+closeBtns.forEach(btn => btn.addEventListener('click', closeModals));

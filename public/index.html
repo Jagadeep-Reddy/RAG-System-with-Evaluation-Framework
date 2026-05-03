@@ -24,11 +24,11 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     SEC 10-K Data
                 </button>
-                <button class="nav-item">
+                <button class="nav-item" id="btn-eval">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     Evaluation Metrics
                 </button>
-                <button class="nav-item">
+                <button class="nav-item" id="btn-routes">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                     Agent Routes
                 </button>
@@ -87,6 +87,47 @@
         </main>
     </div>
     
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay"></div>
+    
+    <div id="modal-eval" class="modal">
+        <div class="modal-header">
+            <h2>Evaluation Metrics page</h2>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-content">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">This is actually your <strong>biggest flex</strong> — you have the data already from <code>test_ragas_eval.py</code>. Just display it:</p>
+            <div class="code-block">
+Faithfulness:        0.91 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░
+Answer Relevancy:    0.87 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░
+Context Precision:   0.83 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░░
+
+Eval set: 500 questions | SEC 10-K Filings
+CI gate:  faithfulness < 0.75 → PR blocked
+            </div>
+            <p style="margin-top: 16px; color: var(--text-secondary);">Static is fine. Nobody expects it to be live-updating. A clean scorecard is enough.</p>
+        </div>
+    </div>
+
+    <div id="modal-routes" class="modal">
+        <div class="modal-header">
+            <h2>Agent Routes page</h2>
+            <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-content">
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">Just show a static diagram of the routing logic:</p>
+            <div class="code-block">
+Query → Complexity Check
+        ↓
+    Simple → Dense Retriever
+    Complex → Decompose → Sub-Query 1 + Sub-Query 2
+                            ↓
+                    RRF Fusion → Reranker → LLM
+            </div>
+            <p style="margin-top: 16px; color: var(--text-secondary);">Again — static is completely fine. It shows you understand what's happening under the hood.</p>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="script.js"></script>
 </body>
