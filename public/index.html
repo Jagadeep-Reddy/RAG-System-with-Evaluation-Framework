@@ -101,9 +101,10 @@
 Faithfulness:        0.91 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░
 Answer Relevancy:    0.87 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░
 Context Precision:   0.83 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░░
+Context Recall:      0.89 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░
 
-Eval set: 500 questions | SEC 10-K Filings
-CI gate:  faithfulness < 0.75 → PR blocked
+Eval set: 2 questions (Golden Dataset) | SEC 10-K Filings
+CI gate:  mean_faithfulness < 0.75 → PR blocked
             </div>
         </div>
     </div>
@@ -116,12 +117,14 @@ CI gate:  faithfulness < 0.75 → PR blocked
         <div class="modal-content">
             <p style="margin-bottom: 16px; color: var(--text-secondary);">Query decomposition and hybrid retrieval pipeline architecture:</p>
             <div class="code-block">
-Query → Complexity Check
+Query → LLM Decomposer (gpt-4o)
         ↓
-    Simple → Dense Retriever
-    Complex → Decompose → Sub-Query 1 + Sub-Query 2
-                            ↓
-                    RRF Fusion → Reranker → LLM
+    Is list length == 1?
+    ├── YES (Simple) → HybridRetriever (BM25+FAISS) → Cross-Encoder → RAGGenerator
+    └── NO (Complex) → Parallel ThreadPoolExecutor
+                       ├── Sub-Query 1 → HybridRetriever → RAGGenerator
+                       ├── Sub-Query n → HybridRetriever → RAGGenerator
+                       └── Synthesizer (gpt-4o) → Final Answer
             </div>
         </div>
     </div>
