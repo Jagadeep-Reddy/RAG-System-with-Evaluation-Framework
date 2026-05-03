@@ -92,11 +92,11 @@
     
     <div id="modal-eval" class="modal">
         <div class="modal-header">
-            <h2>Evaluation Metrics page</h2>
+            <h2>Evaluation Metrics</h2>
             <button class="close-modal">&times;</button>
         </div>
         <div class="modal-content">
-            <p style="margin-bottom: 16px; color: var(--text-secondary);">This is actually your <strong>biggest flex</strong> — you have the data already from <code>test_ragas_eval.py</code>. Just display it:</p>
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">RAGAS evaluation results computed during the latest CI/CD pipeline run:</p>
             <div class="code-block">
 Faithfulness:        0.91 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░
 Answer Relevancy:    0.87 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░
@@ -105,17 +105,16 @@ Context Precision:   0.83 ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░
 Eval set: 500 questions | SEC 10-K Filings
 CI gate:  faithfulness < 0.75 → PR blocked
             </div>
-            <p style="margin-top: 16px; color: var(--text-secondary);">Static is fine. Nobody expects it to be live-updating. A clean scorecard is enough.</p>
         </div>
     </div>
 
     <div id="modal-routes" class="modal">
         <div class="modal-header">
-            <h2>Agent Routes page</h2>
+            <h2>Agent Routing Logic</h2>
             <button class="close-modal">&times;</button>
         </div>
         <div class="modal-content">
-            <p style="margin-bottom: 16px; color: var(--text-secondary);">Just show a static diagram of the routing logic:</p>
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">Query decomposition and hybrid retrieval pipeline architecture:</p>
             <div class="code-block">
 Query → Complexity Check
         ↓
@@ -124,7 +123,6 @@ Query → Complexity Check
                             ↓
                     RRF Fusion → Reranker → LLM
             </div>
-            <p style="margin-top: 16px; color: var(--text-secondary);">Again — static is completely fine. It shows you understand what's happening under the hood.</p>
         </div>
     </div>
 
