@@ -15,7 +15,7 @@ COPY requirements-dev.txt .
 # Install all core python requirements + Google GenAI SDK & BeautifulSoup
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements-dev.txt && \
-    pip install --no-cache-dir langchain-google-genai beautifulsoup4 requests
+    pip install --no-cache-dir langchain-google-genai beautifulsoup4 requests langchain-experimental langchain-community
 
 # Copy project files and folders
 COPY data/ ./data/
