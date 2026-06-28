@@ -1,3 +1,12 @@
+---
+title: RAG System with Evaluation Framework
+emoji: 💼
+colorFrom: indigo
+colorTo: violet
+sdk: docker
+app_port: 7860
+---
+
 # Agentic SEC RAG Explorer (Production-Grade)
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
