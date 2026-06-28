@@ -1,2 +1,5 @@
+# Exclude raw financial data filings from GitHub language statistics
+data/*.html linguist-detectable=false
+data/**/*.html linguist-detectable=false
 *.pkl filter=lfs diff=lfs merge=lfs -text
 *.sqlite filter=lfs diff=lfs merge=lfs -text
