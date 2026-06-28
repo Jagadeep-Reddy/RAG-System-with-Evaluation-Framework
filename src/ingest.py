@@ -1,36 +1,44 @@
 import os
 from typing import List
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, BSHTMLLoader
 from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
     SentenceTransformersTokenTextSplitter
 )
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 
 def load_sec_filings(data_dir: str) -> List[Document]:
-    """Loads all PDF files from directory, maintaining page/source metadata."""
+    """Loads all PDF and HTML files from directory, maintaining page/source metadata."""
     documents = []
     for filename in os.listdir(data_dir):
+        path = os.path.join(data_dir, filename)
         if filename.endswith(".pdf"):
-            path = os.path.join(data_dir, filename)
             loader = PyPDFLoader(path)
             docs = loader.load()
             # Inject source document explicitly
             for doc in docs:
                 doc.metadata['source_doc'] = filename
             documents.extend(docs)
+        elif filename.endswith(".htm") or filename.endswith(".html"):
+            loader = BSHTMLLoader(path, bs_kwargs={"features": "html.parser"})
+            docs = loader.load()
+            for doc in docs:
+                doc.metadata['source_doc'] = filename
+                # Default page metadata to 1 for HTML documents
+                doc.metadata['page'] = 1
+            documents.extend(docs)
     return documents
 
 def fixed_size_chunking(docs: List[Document]) -> List[Document]:
     """Fixed-size character chunking with overlap."""
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=15000, chunk_overlap=1500)
     return splitter.split_documents(docs)
 
 def semantic_chunking(docs: List[Document]) -> List[Document]:
     """Chunks documents based on cosine similarity logic between sentences."""
-    embedder = OpenAIEmbeddings()
+    embedder = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2")
     # Drops chunk when sequence meaning changes via embedding similarity
     splitter = SemanticChunker(embedder, breakpoint_threshold_type="percentile")
     return splitter.split_documents(docs)

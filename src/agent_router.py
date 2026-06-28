@@ -1,6 +1,6 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from src.retrieval import HybridRetriever
@@ -14,7 +14,7 @@ class AgenticRouter:
     def __init__(self, retriever: HybridRetriever, generator: RAGGenerator):
         self.retriever = retriever
         self.generator = generator
-        self.llm = ChatOpenAI(temperature=0.0, model="gpt-4o")
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
         
         self.decomposer_prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a query decomposition agent. 
@@ -46,12 +46,18 @@ class AgenticRouter:
         chain = self.decomposer_prompt | self.llm | StrOutputParser()
         result = chain.invoke({"question": query})
         try:
-            sub_queries = json.loads(result)
+            cleaned_result = result.strip()
+            if cleaned_result.startswith("```"):
+                # Filter out lines starting with markdown block delimiters (e.g. ```json or ```)
+                lines = [line for line in cleaned_result.splitlines() if not line.strip().startswith("```")]
+                cleaned_result = "\n".join(lines).strip()
+                
+            sub_queries = json.loads(cleaned_result)
             if not isinstance(sub_queries, list):
                 return [query]
             return sub_queries
         except Exception as e:
-            print(f"Decomposition parsing failed: {e}")
+            print(f"Decomposition parsing failed: {e}. Raw result: {result}")
             return [query]
 
     def _process_sub_query(self, sub_query: str) -> str:

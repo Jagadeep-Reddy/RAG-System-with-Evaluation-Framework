@@ -1,135 +1,191 @@
-# Production RAG System with Evaluation Framework
-"Enterprise Q&A that you can actually measure and improve"
+# Agentic SEC RAG Explorer (Production-Grade)
 
-## Overview
-This project constructs a production-grade Retrieval-Augmented Generation (RAG) system specialized for exploring and analyzing SEC 10-K financial filings. It emphasizes deep practical understanding of retrieval mathematics, robust generation with strict citations, quantitative evaluation, and agentic query decomposition.
+[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python)](https://www.python.org)
+[![Gemini](https://img.shields.io/badge/Google_Gemini-8E75C2?style=flat&logo=googlegemini)](https://ai.google.dev)
+[![FAISS](https://img.shields.io/badge/FAISS-Dense_Search-00A4EF?style=flat)](https://github.com/facebookresearch/faiss)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Technologies Used
-- **LangChain** (LCEL, Chains, Document Loaders)
-- **FAISS** (Vector Database, IVF/HNSW indices)
-- **Sentence-Transformers** (Bi-encoders/Cross-encoders)
-- **RAGAS** (Automated RAG evaluation)
-- **LangSmith** (Observability and tracing)
-- **BM25 / Rank-BM25** (Sparse retrieval)
-- **PyTorch** & **Transformers** (Model backends)
+An enterprise-ready, low-latency Retrieval-Augmented Generation (RAG) system specialized in analyzing and comparing official SEC 10-K filings. The platform features query decomposition routing, hybrid dense/sparse indexing, cross-encoder reranking, and a native REST batch-embedding engine designed to bypass rate limits under free-tier API quotas.
 
-## Project Architecture
+A beautiful dashboard UI is served locally at [http://localhost:8000/](http://localhost:8000/).
+
+---
+
+## 🏗️ System Architecture & Data Flow
 
 ```mermaid
-graph TD
-    A[SEC 10-K Documents] --> B(Document Loader)
-    B --> C{Chunking Strategy}
-    C --> D[Fixed Size]
-    C --> E[Semantic]
-    C --> F[Hierarchical]
-    D --> G(Vector Embedding)
-    E --> G
-    F --> G
-    D --> H(BM25 Index)
-    E --> H
-    F --> H
-    G --> I[(FAISS IVF Index)]
-    H --> J[(BM25 Sparse Index)]
-    
-    Q[User Query] --> O(Query Decomposition/Agent)
-    O --> P1(Search Query 1)
-    O --> P2(Search Query 2)
-    
-    P1 --> I
-    P1 --> J
-    I --> K(Dense Results)
-    J --> L(Sparse Results)
-    
-    K --> M(Reciprocal Rank Fusion - RRF)
-    L --> M
-    M --> N(Cross-Encoder Reranker)
-    N --> R(Generation Prompt w/ Citations)
-    R --> S[Final Answer with Page Citations]
-    
-    S --> T[RAGAS Evaluation & LangSmith Tracing]
+flowchart TD
+    subgraph Data Ingestion
+        A[Raw SEC 10-K filings in data/] --> B(BSHTMLLoader + html.parser)
+        B --> C[RecursiveCharacterTextSplitter / 15k char window]
+        C --> D[RESTBatchEmbeddings]
+        D -->|Single batch HTTP call| E[(In-Memory FAISS Dense Index)]
+        C --> F[(In-Memory BM25 Sparse Index)]
+    end
+
+    subgraph Agentic Query Routing
+        Q[User Query] --> G(Agent Router / gemini-2.5-flash)
+        G -->|Decompose & Parallelize| H[Sub-Query 1: Apple metrics]
+        G -->|Decompose & Parallelize| I[Sub-Query 2: Microsoft metrics]
+    end
+
+    subgraph Hybrid Retrieval & Reranking
+        H --> J[Parallel Hybrid Retriever]
+        I --> J
+        J -->|Semantic Match| E
+        J -->|Keyword Match| F
+        E --> K(Reciprocal Rank Fusion - RRF)
+        F --> K
+        K --> L[Cross-Encoder Reranker]
+    end
+
+    subgraph Generation & Consensus
+        L --> M[System QA Prompt / Strict Citation Rules]
+        M --> N(Self-Consistency Voter / Batch Temp 0.7)
+        N --> O[Final Synthesized Answer w/ UI Citation Badges]
+    end
+
+    subgraph User Presentation
+        O --> P[FastAPI Server]
+        P -->|Mounts public/ directory| UI[Interactive HTML/CSS/JS Dashboard]
+    end
+
+    style Data Ingestion fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style Agentic Query Routing fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style Hybrid Retrieval & Reranking fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style Generation & Consensus fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style User Presentation fill:#161b22,stroke:#30363d,stroke-width:2px,color:#c9d1d9
 ```
 
-## Step-by-Step Implementation Guide
+---
 
-### Part A: Retrieval Deep Dive
+## 🛠️ Core Engineering Features
 
-#### 1. Setup Data Processing and Chunking
-1. **Data Loading**: Load SEC 10-K PDFs using `PyPDFLoader` to retain metadata (page numbers and document source are critical for Part B).
-2. **Chunking Strategies**:
-   - **Fixed-size**: Divide text into 1000-character chunks with a 200-character overlap.
-   - **Sentence-level**: Chunk by sentence boundaries using NLTK or Spacy.
-   - **Semantic chunking**: Splitting text when the underlying meaning shifts, calculated via cosine similarity drops between sequential sentences.
-   - **Hierarchical chunking**: Parent-child document retrieval stores large parent chunks for complete context and small child chunks for vector searching.
+### 1. High-Performance REST Batch Embeddings
+LangChain's default `GoogleGenerativeAIEmbeddings` utilizes a thread pool to send individual chunks concurrently, which quickly triggers `429 Resource Exhausted` rate-limit exceptions on Gemini API keys (limit of 15 requests per minute). 
+We implement `RESTBatchEmbeddings` inside [src/retrieval.py](file:///c:/Users/jagadheep%20reddy/Desktop/Production-RAG/src/retrieval.py) to directly communicate with the native Google REST endpoint `batchEmbedContents`. This packages up to 100 document chunks in a **single payload/network request**, reducing 53 chunk embeddings to a single network call.
 
-#### 2. Vector Stores & Dense Retrieval
-1. **Embedding Models**: Use `sentence-transformers/all-MiniLM-L6-v2` (Bi-encoder) to map text to dense numerical vectors. 
-2. **FAISS IVF**: Implement a FAISS Index (IndexIVFFlat) to enable clustering. It partitions the vector space using k-means, avoiding exhaustively calculating the dot product across 100,000+ chunks.
+### 2. Native SEC HTML Loader
+Since SEC EDGAR files are natively published in HTML format, our ingestion pipeline in [src/ingest.py](file:///c:/Users/jagadheep%20reddy/Desktop/Production-RAG/src/ingest.py) reads `.htm` / `.html` documents directly using `BSHTMLLoader` wrapped with the built-in python `"html.parser"`. Old, low-accuracy mock PDF files have been deprecated.
 
-#### 3. Sparse Retrieval (BM25)
-1. **TF-IDF for Retrieval**: Use `Rank-BM25` to evaluate exact keyword overlap. Unlike dense retrieval which excels at semantic similarity, BM25 handles specific financial entities, product names, or ticker symbols.
+### 3. Agentic Query Decomposer & Router
+Complex comparison queries are split into single-topic sub-queries using `agent_router.py`. Each sub-query runs parallel semantic (FAISS) and lexical (BM25) searches, which are fused using **Reciprocal Rank Fusion (RRF)**:
+$$\text{RRF Score}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
+A **Cross-Encoder Reranker** (`ms-marco-MiniLM-L-6-v2`) evaluates joint token representations of the query and candidate passages, filtering out noise and bubbles the most relevant sections to the generation node.
 
-#### 4. Hybrid Search and Reranking
-1. **Reciprocal Rank Fusion (RRF)**: Implement RRF formula `score = 1 / (k + rank)` to effectively combine BM25 sparse rankings with FAISS dense rankings without requiring normalized prediction scores.
-2. **Cross-Encoder Reranking**: Send the top `N` candidates from the RRF output to a Cross-Encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`). Why? Bi-encoders compute query and document separately; Cross-encoders process them simultaneously, yielding highly accurate relevance scores at the expense of computational latency.
+### 4. Hallucination Detection & Strict Citation Persona
+Our prompt guidelines enforce strict bracketed citations linked directly to raw HTML files (e.g. `[Document: AAPL_10K.html, Page: 22]`). We implement self-consistency checks using a higher temperature batch execution (`temperature=0.7`, 3 paths). If generating divergent facts, a warning is raised.
 
-### Part B: Generation + Citation
+---
 
-#### 1. Prompt Engineering
-1. **System Role**: Establish a hardline persona. Example: "You are a senior financial analyst. Answer inquiries leveraging ONLY the retrieved context."
-2. **Chain-of-Thought (CoT)**: Restructure the prompt to force step-by-step reasoning before final articulation.
+## 📂 Project Structure
 
-#### 2. Strict Citation Enforcement
-1. **Page/Source Linking**: Inject metadata (e.g., `[AAPL_10k.pdf, Page 45]`) into the retrieved text block sent to the LLM. Instruct the model to append these exact bracketed identifiers next to any factual premise made in the answer.
+```text
+Production-RAG/
+├── data/                    # Raw SEC 10-K HTML filings (AAPL, MSFT)
+├── public/                  # Static web dashboard resources
+│   ├── index.html           # Front-end structure
+│   ├── style.css            # Stylesheets (custom themes, dark mode)
+│   └── script.js            # Frontend chat interface & citation parser
+├── src/                     # Core application logic
+│   ├── api.py               # FastAPI router endpoints & mounting
+│   ├── ingest.py            # Document loading & character chunking
+│   ├── retrieval.py         # REST batching, FAISS, BM25, RRF, Reranker
+│   ├── agent_router.py      # Query decomposition & routing logic
+│   └── generation.py        # LCEL chain, prompt context, self-consistency
+├── tests/                   # Verification suite
+├── requirements-dev.txt     # Developer tools (pytest, black)
+└── requirements-ui.txt      # Runtime dependencies
+```
 
-#### 3. Hallucination Detection
-1. **Self-Consistency Implementation**: Generate 3 responses concurrently with a temperature of 0.4. If there is significant deviation between the facts cited, an automated "hallucination flag" is raised to notify the end-user.
+---
 
-### Part C: RAG Evaluation Framework (CI/CD Integrated)
+## ⚙️ Configuration & Environment
 
-#### 1. Building the Eval Dataset
-Generate a golden dataset comprising 50 tuples: `(User Query, Annotated Ground-Truth, Source Document)`. Question types must span: Extracting metrics, analyzing trends, and summarizing risk factors.
+Create a `.env` file in the root directory:
 
-#### 2. RAGAS Metrics
-Compute performance quantitatively:
-- **Faithfulness**: Do the retrieved passages actually corroborate the generated answer?
-- **Answer Relevancy**: Does the answer directly tackle the posed question?
-- **Context Precision**: Are the most relevant chunks bubbled up to the absolute top of the reranker?
-- **Context Recall**: Did the retrieval system find all necessary information fragments?
+```env
+GOOGLE_API_KEY=AIzaSy...       # Your Google AI Studio API Key
+CHUNK_TYPE=fixed              # fixed or semantic
+```
 
-#### 3. CI/CD Gate via GitHub Actions
-Create an automated test suite. On every Pull Request, trigger the eval dataset inference run. The pipeline is programmed to execute `exit 1` (fail the build) if the system's overall **Faithfulness metric falls below 0.75**.
+---
 
-#### 4. Observability
-Instrument all LangChain execution blocks with **LangSmith**. Ensure `LANGCHAIN_TRACING_V2=true` is set to monitor pipeline latency, LLM trace steps, and pinpoint bottlenecks.
+## 🚀 Running the Application
 
-### Part D: Agentic Multi-Hop RAG
-
-#### 1. Query Decomposition
-Introduce an LLM router at the gateway. For compound questions (e.g., "How does Microsoft's AI spending compare to Google's?"), the agent decomposes this into:
-- Q1: "What was Microsoft's AI spending?"
-- Q2: "What was Google's AI spending?"
-
-#### 2. Synthesis and Multi-hop Reasoning
-Conduct the hybrid retrieval pipeline on both sub-queries in parallel. Funnel both isolated answers into a final Synthesizer Node that drafts the comparative response.
-
-## Running Locally
-
-### 1. Requirements
-Ensure Python 3.10+ is installed.
+### 1. Install Dependencies
 ```bash
+pip install -r requirements-ui.txt
 pip install -r requirements-dev.txt
 ```
 
-### 2. Environment Variables
-Create a `.env` root file:
-```txt
-OPENAI_API_KEY=sk-...
-LANGCHAIN_API_KEY=lsv2_...
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT=sec-qa-production
+### 2. Start the FastAPI Application
+Execute uvicorn to start the local server. Ingestion, chunking, and index construction will trigger automatically on the first chat query request:
+
+```bash
+python -m uvicorn src.api:app --host 0.0.0.0 --port 8000
 ```
 
-### 3. Usage
-- **Build Vector & BM25 Indexes**: `python src/ingest_sec_data.py`
-- **Start Inference API**: `python src/agent_router.py`
-- **Run Tests & RAGAS Eval**: `pytest tests/test_ragas_eval.py`
+### 3. Access the Dashboard
+Open your browser and navigate to:
+👉 **[http://localhost:8000/](http://localhost:8000/)**
+
+---
+
+## 🧪 Testing the API
+
+You can test the RAG server programmatically.
+
+### cURL Request:
+```bash
+curl -X POST "http://localhost:8000/api/chat" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "Compare Apple and Microsoft R&D spending in 2023"}'
+```
+
+### Response Schema:
+```json
+{
+  "answer": "In 2023, Apple's Research and development (R&D) expense was $29,915 million [Document: AAPL_10K.html, Page: 22]. Microsoft's R&D spending was $27,195 million [Document: MSFT_10K.html, Page: 47]. This represents approximately $2.72 billion more spent by Apple.",
+  "steps": [
+    "Decomposing complex query...",
+    "Sub-Query 1: 'What was Apple's R&D spending in 2023?'",
+    "Sub-Query 2: 'What was Microsoft's R&D spending in 2023?'",
+    "Running parallel dense/sparse hybrid retrieval...",
+    "Reciprocal Rank Fusion (RRF) & Cross-Encoder reranking...",
+    "Synthesizing final multi-hop response."
+  ]
+}
+```
+
+---
+
+## 📈 Evaluation & Observability
+
+### RAGAS Integration
+We evaluate the quality of responses across four major metrics:
+* **Faithfulness**: Verifies if the answer is derived strictly from context.
+* **Answer Relevancy**: Verifies if the answer directly addresses the user query.
+* **Context Precision**: Measures whether the retrieved documents match ground truth ordering.
+* **Context Recall**: Verifies if the retrieval system recovered all necessary information fragments.
+
+### LangSmith Tracing
+To trace latency, LLM paths, and RRF rank details, set the following environment variables:
+```env
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=sec-qa-production
+LANGCHAIN_API_KEY=your-langsmith-key
+```
+
+---
+
+## 🛡️ Production Deployment Guidelines
+
+For deploying this application in production:
+1. **WSGI/ASGI Server**: Run uvicorn behind a process manager like Gunicorn with Uvicorn workers:
+   ```bash
+   gunicorn src.api:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+   ```
+2. **Reverse Proxy**: Place the application behind Nginx to handle SSL termination, rate-limiting, and static file caching for the `public/` folder.
+3. **Containerization**: Use a multi-stage Dockerfile containing caching for Python wheels and lightweight base images (`python:3.12-slim`).

@@ -1,19 +1,18 @@
 from typing import List
 from operator import itemgetter
 from langchain_core.documents import Document
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 class RAGGenerator:
     """
     Handles prompt engineering, strict citations, and hallucination detection.
     """
     def __init__(self):
-        self.llm = ChatOpenAI(temperature=0.5, model="gpt-4o")
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
         
-        # Part B1 & B2: Prompt Engineering & Strict Citation Enforcement
         self.qa_prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a meticulous financial analyst. 
             You must answer the user's question using ONLY the provided context blocks below.
@@ -23,6 +22,7 @@ class RAGGenerator:
             2. The citation format must be exactly: [Document: <source_doc>, Page: <page>].
             3. If the context does not contain enough information to answer the question, state: "Insufficient context to answer."
             4. Do not invent metrics or facts.
+            5. Note that the documents provided (e.g., AAPL_10K.pdf, MSFT_10K.pdf) are the annual reports (10-K filings) for the fiscal year 2023. Therefore, unless another year is explicitly stated in the text, you can assume the reported figures in these documents are for the fiscal year 2023.
             
             Context Blocks:
             {context}"""),
@@ -45,7 +45,7 @@ class RAGGenerator:
         Executes standard LCEL chain for generation using retrieved documents.
         """
         chain = (
-            {"context": itemgetter("docs") | RunnablePassthrough(self._format_docs), 
+            {"context": itemgetter("docs") | RunnableLambda(self._format_docs), 
              "question": itemgetter("question")}
             | self.qa_prompt
             | self.llm
@@ -59,9 +59,9 @@ class RAGGenerator:
         Runs the prompt 3 times at temp > 0. If answers drastically conflict, raise a warning.
         """
         # Create a more creative LLM for sampling
-        sampling_llm = ChatOpenAI(temperature=0.7, model="gpt-4o")
+        sampling_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7)
         chain = (
-            {"context": itemgetter("docs") | RunnablePassthrough(self._format_docs), 
+            {"context": itemgetter("docs") | RunnableLambda(self._format_docs), 
              "question": itemgetter("question")}
             | self.qa_prompt
             | sampling_llm
@@ -77,6 +77,6 @@ class RAGGenerator:
             ("user", f"Question: {question}\n\nAnswer 1: {responses[0]}\n\nAnswer 2: {responses[1]}\n\nAnswer 3: {responses[2]}")
         ])
         
-        voter_chain = vote_prompt | ChatOpenAI(temperature=0.0) | StrOutputParser()
+        voter_chain = vote_prompt | ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0) | StrOutputParser()
         final_answer = voter_chain.invoke({})
         return final_answer

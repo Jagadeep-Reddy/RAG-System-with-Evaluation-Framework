@@ -1,11 +1,63 @@
+import os
 from typing import List, Dict, Any
 import numpy as np
 from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 # Assuming cross-encoder is available via sentence-transformers
 from sentence_transformers import CrossEncoder
+
+import requests
+from langchain_core.embeddings import Embeddings
+
+class RESTBatchEmbeddings(Embeddings):
+    """Embeddings implementation using native Google REST API for batching."""
+    def __init__(self, model_name: str = "models/gemini-embedding-2"):
+        self.model_name = model_name
+        self.api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        
+        batch_size = 100
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            chunk = texts[i:i + batch_size]
+            url = f"https://generativelanguage.googleapis.com/v1beta/{self.model_name}:batchEmbedContents?key={self.api_key}"
+            payload = {
+                "requests": [
+                    {
+                        "model": self.model_name,
+                        "content": {
+                            "parts": [{"text": text}]
+                        }
+                    }
+                    for text in chunk
+                ]
+            }
+            res = requests.post(url, json=payload)
+            res.raise_for_status()
+            data = res.json()
+            embeddings = [e["values"] for e in data["embeddings"]]
+            all_embeddings.extend(embeddings)
+            
+        return all_embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        url = f"https://generativelanguage.googleapis.com/v1beta/{self.model_name}:embedContent?key={self.api_key}"
+        payload = {
+            "model": self.model_name,
+            "content": {
+                "parts": [{"text": text}]
+            }
+        }
+        res = requests.post(url, json=payload)
+        res.raise_for_status()
+        data = res.json()
+        return data["embedding"]["values"]
 
 class HybridRetriever:
     """
@@ -15,7 +67,7 @@ class HybridRetriever:
     
     def __init__(self, docs: List[Document]):
         self.docs = docs
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = RESTBatchEmbeddings(model_name="models/gemini-embedding-2")
         
         # 1. Initialize Dense Retriever (FAISS)
         print("Building Dense FAISS Index...")
@@ -37,16 +89,23 @@ class HybridRetriever:
         Reciprocal Rank Fusion algorithm to merge dense and sparse results.
         score = 1 / (k + rank)
         """
+        import hashlib
         rrf_scores: Dict[str, float] = {}
         doc_map: Dict[str, Document] = {}
         
         for rank, doc in enumerate(dense_results):
-            doc_id = doc.page_content # using content as naive ID
+            source = doc.metadata.get('source_doc', 'Unknown')
+            page = doc.metadata.get('page', 'Unknown')
+            content_hash = hashlib.md5(doc.page_content.encode('utf-8', errors='ignore')).hexdigest()
+            doc_id = f"{source}_p{page}_{content_hash}"
             doc_map[doc_id] = doc
             rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1 / (k + rank + 1)
             
         for rank, doc in enumerate(sparse_results):
-            doc_id = doc.page_content
+            source = doc.metadata.get('source_doc', 'Unknown')
+            page = doc.metadata.get('page', 'Unknown')
+            content_hash = hashlib.md5(doc.page_content.encode('utf-8', errors='ignore')).hexdigest()
+            doc_id = f"{source}_p{page}_{content_hash}"
             doc_map[doc_id] = doc
             rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1 / (k + rank + 1)
             
@@ -73,8 +132,8 @@ class HybridRetriever:
 
     def retrieve(self, query: str, top_n: int = 5) -> List[Document]:
         """Final pipeline: Dense/Sparse in parallel -> RRF -> Reranking"""
-        dense_res = self.dense_retriever.get_relevant_documents(query)
-        sparse_res = self.sparse_retriever.get_relevant_documents(query)
+        dense_res = self.dense_retriever.invoke(query)
+        sparse_res = self.sparse_retriever.invoke(query)
         
         # Filter down via hybrid
         rrf_res = self._rrf(dense_res, sparse_res)
