@@ -16,7 +16,7 @@ A beautiful dashboard UI is served locally at [http://localhost:8000/](http://lo
 
 ```mermaid
 flowchart TD
-    subgraph Data Ingestion
+    subgraph subgraph_ingestion ["Data Ingestion"]
         A[Raw SEC 10-K filings in data/] --> B(BSHTMLLoader + html.parser)
         B --> C[RecursiveCharacterTextSplitter / 15k char window]
         C --> D[RESTBatchEmbeddings]
@@ -24,13 +24,13 @@ flowchart TD
         C --> F[(In-Memory BM25 Sparse Index)]
     end
 
-    subgraph Agentic Query Routing
+    subgraph subgraph_routing ["Agentic Query Routing"]
         Q[User Query] --> G(Agent Router / gemini-2.5-flash)
         G -->|Decompose & Parallelize| H[Sub-Query 1: Apple metrics]
         G -->|Decompose & Parallelize| I[Sub-Query 2: Microsoft metrics]
     end
 
-    subgraph Hybrid Retrieval & Reranking
+    subgraph subgraph_retrieval ["Hybrid Retrieval & Reranking"]
         H --> J[Parallel Hybrid Retriever]
         I --> J
         J -->|Semantic Match| E
@@ -40,22 +40,22 @@ flowchart TD
         K --> L[Cross-Encoder Reranker]
     end
 
-    subgraph Generation & Consensus
+    subgraph subgraph_generation ["Generation & Consensus"]
         L --> M[System QA Prompt / Strict Citation Rules]
         M --> N(Self-Consistency Voter / Batch Temp 0.7)
         N --> O[Final Synthesized Answer w/ UI Citation Badges]
     end
 
-    subgraph User Presentation
+    subgraph subgraph_presentation ["User Presentation"]
         O --> P[FastAPI Server]
         P -->|Mounts public/ directory| UI[Interactive HTML/CSS/JS Dashboard]
     end
 
-    style Data Ingestion fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
-    style Agentic Query Routing fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
-    style Hybrid Retrieval & Reranking fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
-    style Generation & Consensus fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
-    style User Presentation fill:#161b22,stroke:#30363d,stroke-width:2px,color:#c9d1d9
+    style subgraph_ingestion fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style subgraph_routing fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style subgraph_retrieval fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style subgraph_generation fill:#0d1117,stroke:#21262d,stroke-width:2px,color:#c9d1d9
+    style subgraph_presentation fill:#161b22,stroke:#30363d,stroke-width:2px,color:#c9d1d9
 ```
 
 ---
