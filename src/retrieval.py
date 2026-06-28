@@ -18,6 +18,7 @@ class RESTBatchEmbeddings(Embeddings):
         self.api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        import time
         if not texts:
             return []
         
@@ -38,15 +39,36 @@ class RESTBatchEmbeddings(Embeddings):
                     for text in chunk
                 ]
             }
-            res = requests.post(url, json=payload)
-            res.raise_for_status()
-            data = res.json()
-            embeddings = [e["values"] for e in data["embeddings"]]
-            all_embeddings.extend(embeddings)
+            
+            max_retries = 5
+            backoff = 2.0
+            chunk_embeddings = None
+            
+            for attempt in range(max_retries):
+                try:
+                    res = requests.post(url, json=payload)
+                    if res.status_code == 429:
+                        print(f"Embedding batch got 429. Retrying in {backoff}s (attempt {attempt+1}/{max_retries})...")
+                        time.sleep(backoff)
+                        backoff *= 2
+                        continue
+                    res.raise_for_status()
+                    data = res.json()
+                    chunk_embeddings = [e["values"] for e in data["embeddings"]]
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    time.sleep(backoff)
+                    backoff *= 2
+            
+            if chunk_embeddings:
+                all_embeddings.extend(chunk_embeddings)
             
         return all_embeddings
 
     def embed_query(self, text: str) -> List[float]:
+        import time
         url = f"https://generativelanguage.googleapis.com/v1beta/{self.model_name}:embedContent?key={self.api_key}"
         payload = {
             "model": self.model_name,
@@ -54,10 +76,25 @@ class RESTBatchEmbeddings(Embeddings):
                 "parts": [{"text": text}]
             }
         }
-        res = requests.post(url, json=payload)
-        res.raise_for_status()
-        data = res.json()
-        return data["embedding"]["values"]
+        
+        max_retries = 5
+        backoff = 2.0
+        for attempt in range(max_retries):
+            try:
+                res = requests.post(url, json=payload)
+                if res.status_code == 429:
+                    print(f"Embedding query got 429. Retrying in {backoff}s (attempt {attempt+1}/{max_retries})...")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                res.raise_for_status()
+                data = res.json()
+                return data["embedding"]["values"]
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep(backoff)
+                backoff *= 2
 
 class HybridRetriever:
     """

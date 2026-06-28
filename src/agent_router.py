@@ -80,9 +80,12 @@ class AgenticRouter:
         for i, sq in enumerate(sub_queries):
             print(f"  {i+1}. {sq}")
             
-        # Execute sub-queries in parallel
-        with ThreadPoolExecutor() as executor:
-            sub_answers = list(executor.map(self._process_sub_query, sub_queries))
+        # Execute sub-queries sequentially to avoid concurrent rate limit errors on the free-tier API
+        import time
+        sub_answers = []
+        for sq in sub_queries:
+            sub_answers.append(self._process_sub_query(sq))
+            time.sleep(1.0) # Grace period to prevent triggering rapid RPM rate limits
             
         # Synthesize
         formatted_answers = ""
