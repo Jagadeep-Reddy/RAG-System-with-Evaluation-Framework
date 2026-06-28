@@ -45,7 +45,11 @@ async function handleSend() {
     const typingInd = aiMessageDiv.querySelector('.typing-indicator');
 
     try {
-        const response = await fetch('/api/chat', {
+        const apiBase = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+            ? ''
+            : 'https://jagadeep24-rag-system-with-evaluation-framework.hf.space';
+        
+        const response = await fetch(`${apiBase}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: text })
