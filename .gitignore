@@ -15,6 +15,7 @@ venv.bak/
 logs
 *.log
 
-# Database lock files
+# Database files
+data/qdrant_db/
+data/bm25_index.pkl
 *.lock
-data/qdrant_db/.lock
