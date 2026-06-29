@@ -16,6 +16,6 @@ logs
 *.log
 
 # Database files
-data/qdrant_db/
-data/bm25_index.pkl
+# data/qdrant_db/
+# data/bm25_index.pkl
 *.lock
