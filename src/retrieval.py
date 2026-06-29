@@ -102,25 +102,104 @@ class HybridRetriever:
     with Reciprocal Rank Fusion (RRF) and Cross-Encoder Reranking.
     """
     
-    def __init__(self, docs: List[Document]):
+    def __init__(self, docs: List[Document] = None, qdrant_path: str = "data/qdrant_db", bm25_path: str = "data/bm25_index.pkl"):
         self.docs = docs
         from langchain_community.embeddings import HuggingFaceEmbeddings
+        from qdrant_client import QdrantClient
+        from qdrant_client.models import PointStruct, VectorParams, Distance
+        import pickle
+        import os
+        
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        self.qdrant_client = QdrantClient(path=qdrant_path)
         
-        # 1. Initialize Dense Retriever (FAISS)
-        print("Building Dense FAISS Index...")
-        self.vectorstore = FAISS.from_documents(self.docs, self.embeddings)
-        self.dense_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 10})
-        
-        # 2. Initialize Sparse Retriever (BM25)
-        print("Building Sparse BM25 Index...")
-        self.sparse_retriever = BM25Retriever.from_documents(self.docs)
-        self.sparse_retriever.k = 10
+        if docs is not None and len(docs) > 0:
+            # 1. Initialize Dense Retriever (Qdrant) dynamically
+            print("Building Dense Index in Qdrant (Dynamic)...")
+            os.makedirs(os.path.dirname(qdrant_path), exist_ok=True)
+            
+            # Embed documents
+            texts = [doc.page_content for doc in docs]
+            vectors = self.embeddings.embed_documents(texts)
+            
+            # Recreate collection
+            self.qdrant_client.recreate_collection(
+                collection_name="sec_filings",
+                vectors_config=VectorParams(size=len(vectors[0]), distance=Distance.COSINE)
+            )
+            
+            # Upsert
+            points = []
+            for idx, (doc, vector) in enumerate(zip(docs, vectors)):
+                points.append(
+                    PointStruct(
+                        id=idx,
+                        vector=vector,
+                        payload={
+                            "page_content": doc.page_content,
+                            "source_doc": doc.metadata.get("source_doc", "Unknown"),
+                            "page": doc.metadata.get("page", 1)
+                        }
+                    )
+                )
+            self.qdrant_client.upsert(collection_name="sec_filings", points=points)
+            
+            # 2. Initialize Sparse Retriever (BM25) dynamically
+            print("Building Sparse BM25 Index (Dynamic)...")
+            self.sparse_retriever = BM25Retriever.from_documents(self.docs)
+            self.sparse_retriever.k = 10
+            
+            # Save the sparse retriever to disk
+            print(f"Persisting BM25 index to {bm25_path}...")
+            os.makedirs(os.path.dirname(bm25_path), exist_ok=True)
+            with open(bm25_path, "wb") as f:
+                pickle.dump(self.sparse_retriever, f)
+        else:
+            # Load from persistent storage
+            print(f"Checking persistent Qdrant collection from '{qdrant_path}'...")
+            if os.path.exists(qdrant_path):
+                # Verify collection exists
+                collections = self.qdrant_client.get_collections().collections
+                exists = any(c.name == "sec_filings" for c in collections)
+                if not exists:
+                    raise FileNotFoundError(f"Collection 'sec_filings' not found in Qdrant database at {qdrant_path}")
+            else:
+                raise FileNotFoundError(f"Persistent Qdrant database not found at {qdrant_path}. Please run the ingestion script first.")
+                
+            print(f"Loading persistent BM25 index from '{bm25_path}'...")
+            if os.path.exists(bm25_path):
+                with open(bm25_path, "rb") as f:
+                    self.sparse_retriever = pickle.load(f)
+                self.sparse_retriever.k = 10
+            else:
+                raise FileNotFoundError(f"Persistent BM25 index file not found at {bm25_path}. Please run the ingestion script first.")
         
         # 3. Initialize Cross-Encoder
         # Best tradeoff between performance and latency
         print("Loading Cross-Encoder...")
         self.cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512)
+        
+    def _dense_retrieve(self, query: str, k: int = 10) -> List[Document]:
+        """Performs dense vector search directly in Qdrant."""
+        query_vector = self.embeddings.embed_query(query)
+        search_result = self.qdrant_client.query_points(
+            collection_name="sec_filings",
+            query=query_vector,
+            limit=k
+        )
+        retrieved_docs = []
+        for hit in search_result.points:
+            retrieved_docs.append(
+                Document(
+                    page_content=hit.payload["page_content"],
+                    metadata={
+                        "source_doc": hit.payload.get("source_doc", "Unknown"),
+                        "page": hit.payload.get("page", 1)
+                    }
+                )
+            )
+        return retrieved_docs
+
         
     def _rrf(self, dense_results: List[Document], sparse_results: List[Document], k: int = 60) -> List[Document]:
         """
@@ -170,7 +249,7 @@ class HybridRetriever:
 
     def retrieve(self, query: str, top_n: int = 5) -> List[Document]:
         """Final pipeline: Dense/Sparse in parallel -> RRF -> Reranking"""
-        dense_res = self.dense_retriever.invoke(query)
+        dense_res = self._dense_retrieve(query, k=10)
         sparse_res = self.sparse_retriever.invoke(query)
         
         # Filter down via hybrid
@@ -179,3 +258,4 @@ class HybridRetriever:
         # Rerank top ~20 with cross encoder down to top_n
         final_res = self._cross_encoder_rerank(query, rrf_res, top_n=top_n)
         return final_res
+

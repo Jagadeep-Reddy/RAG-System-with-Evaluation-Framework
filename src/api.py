@@ -51,18 +51,16 @@ def init_rag():
         return
         
     try:
-        print("Initializing real RAG pipeline...")
-        # 1. Ingest documents
-        docs = ingest_pipeline("data/")
-        if not docs:
-            print("WARNING: No document chunks loaded. Running in MOCK MODE.")
-            return
-            
-        # 2. Build indexes and compile pipeline
-        retriever = HybridRetriever(docs)
+        print("Initializing real RAG pipeline (loading from persistent database)...")
+        # Load retriever directly from disk-based indexes (Qdrant & BM25)
+        retriever = HybridRetriever(qdrant_path="data/qdrant_db", bm25_path="data/bm25_index.pkl")
         generator = RAGGenerator()
         router = AgenticRouter(retriever, generator)
         print("Real RAG pipeline successfully initialized!")
+    except FileNotFoundError as fnf:
+        print(f"WARNING: Persistent database files not found ({fnf}).")
+        print("Please run 'python src/ingest.py' first to build and store the indexes. Running in MOCK MODE.")
+        router = None
     except Exception as e:
         print(f"ERROR: Failed to initialize RAG pipeline: {e}. Falling back to MOCK MODE.")
         router = None

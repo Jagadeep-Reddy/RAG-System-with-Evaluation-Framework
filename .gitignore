@@ -14,3 +14,7 @@ venv.bak/
 # Logs
 logs
 *.log
+
+# Database lock files
+*.lock
+data/qdrant_db/.lock
