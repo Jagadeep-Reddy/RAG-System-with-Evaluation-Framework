@@ -77,8 +77,8 @@ async def chat_endpoint(request: QueryRequest):
     # If the real RAG router was successfully built, use it!
     if router is not None:
         try:
-            print(f"Processing query using Real RAG: '{request.query}'")
-            sub_queries = router.decompose(request.query)
+            # Bypass LLM decomposition to minimize API request count and avoid rate limits
+            sub_queries = [request.query]
             
             if len(sub_queries) <= 1:
                 steps = [

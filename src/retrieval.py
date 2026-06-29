@@ -104,7 +104,8 @@ class HybridRetriever:
     
     def __init__(self, docs: List[Document]):
         self.docs = docs
-        self.embeddings = RESTBatchEmbeddings(model_name="models/gemini-embedding-2")
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         
         # 1. Initialize Dense Retriever (FAISS)
         print("Building Dense FAISS Index...")
