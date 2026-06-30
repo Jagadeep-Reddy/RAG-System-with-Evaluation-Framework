@@ -37,7 +37,7 @@
             <div class="index-status">
                 <h3>Vector Index Status</h3>
                 <div class="status-item">
-                    <span>FAISS Dense</span>
+                    <span>Qdrant Dense</span>
                     <span class="badge success">Active</span>
                 </div>
                 <div class="status-item">
@@ -120,7 +120,7 @@ CI gate:  mean_faithfulness < 0.75 → PR blocked
 Query → LLM Decomposer (gpt-4o)
         ↓
     Is list length == 1?
-    ├── YES (Simple) → HybridRetriever (BM25+FAISS) → Cross-Encoder → RAGGenerator
+    ├── YES (Simple) → HybridRetriever (BM25+Qdrant) → Cross-Encoder → RAGGenerator
     └── NO (Complex) → Parallel ThreadPoolExecutor
                        ├── Sub-Query 1 → HybridRetriever → RAGGenerator
                        ├── Sub-Query n → HybridRetriever → RAGGenerator

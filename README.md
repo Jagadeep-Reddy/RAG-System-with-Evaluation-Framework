@@ -12,7 +12,7 @@ app_port: 7860
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python)](https://www.python.org)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-8E75C2?style=flat&logo=googlegemini)](https://ai.google.dev)
-[![FAISS](https://img.shields.io/badge/FAISS-Dense_Search-00A4EF?style=flat)](https://github.com/facebookresearch/faiss)
+[![Qdrant](https://img.shields.io/badge/Qdrant-Vector_Database-red?style=flat&logo=qdrant)](https://qdrant.tech/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An enterprise-ready, low-latency Retrieval-Augmented Generation (RAG) system specialized in analyzing and comparing official SEC 10-K filings. The platform features query decomposition routing, hybrid dense/sparse indexing, cross-encoder reranking, and a native REST batch-embedding engine designed to bypass rate limits under free-tier API quotas.
@@ -28,8 +28,8 @@ flowchart TD
     subgraph subgraph_ingestion ["Data Ingestion"]
         A[Raw SEC 10-K filings in data/] --> B(BSHTMLLoader + html.parser)
         B --> C[RecursiveCharacterTextSplitter / 15k char window]
-        C --> D[RESTBatchEmbeddings]
-        D -->|Single batch HTTP call| E[(In-Memory FAISS Dense Index)]
+        C --> D[HuggingFaceEmbeddings / all-MiniLM-L6-v2]
+        D -->|Batch Upsert| E[(Local Qdrant Dense Index)]
         C --> F[(In-Memory BM25 Sparse Index)]
     end
 
@@ -71,15 +71,16 @@ flowchart TD
 
 ## 🛠️ Core Engineering Features
 
-### 1. High-Performance REST Batch Embeddings
-LangChain's default `GoogleGenerativeAIEmbeddings` utilizes a thread pool to send individual chunks concurrently, which quickly triggers `429 Resource Exhausted` rate-limit exceptions on Gemini API keys (limit of 15 requests per minute). 
-We implement `RESTBatchEmbeddings` inside [src/retrieval.py](file:///c:/Users/jagadheep%20reddy/Desktop/Production-RAG/src/retrieval.py) to directly communicate with the native Google REST endpoint `batchEmbedContents`. This packages up to 100 document chunks in a **single payload/network request**, reducing 53 chunk embeddings to a single network call.
+### 1. High-Performance Local & Batch Embeddings
+To entirely bypass external API rate limits and network latency during document ingestion and search, the system runs local semantic embeddings using Hugging Face's `all-MiniLM-L6-v2` model, persisting vector embeddings to a local disk-based `Qdrant` instance.
+
+Additionally, for cases where native Google embeddings are preferred, we implement a custom `RESTBatchEmbeddings` class inside [src/retrieval.py](file:///c:/Users/jagadheep%20reddy/Desktop/Production-RAG/src/retrieval.py) to communicate directly with the Google REST endpoint `batchEmbedContents`. This packages up to 100 document chunks in a **single payload/network request** (avoiding the concurrent thread-pool rate limits of standard wrappers).
 
 ### 2. Native SEC HTML Loader
 Since SEC EDGAR files are natively published in HTML format, our ingestion pipeline in [src/ingest.py](file:///c:/Users/jagadheep%20reddy/Desktop/Production-RAG/src/ingest.py) reads `.htm` / `.html` documents directly using `BSHTMLLoader` wrapped with the built-in python `"html.parser"`. Old, low-accuracy mock PDF files have been deprecated.
 
 ### 3. Agentic Query Decomposer & Router
-Complex comparison queries are split into single-topic sub-queries using `agent_router.py`. Each sub-query runs parallel semantic (FAISS) and lexical (BM25) searches, which are fused using **Reciprocal Rank Fusion (RRF)**:
+Complex comparison queries are split into single-topic sub-queries using `agent_router.py`. Each sub-query runs parallel semantic (Qdrant) and lexical (BM25) searches, which are fused using **Reciprocal Rank Fusion (RRF)**:
 $$\text{RRF Score}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
 A **Cross-Encoder Reranker** (`ms-marco-MiniLM-L-6-v2`) evaluates joint token representations of the query and candidate passages, filtering out noise and bubbles the most relevant sections to the generation node.
 
@@ -100,7 +101,7 @@ Production-RAG/
 ├── src/                     # Core application logic
 │   ├── api.py               # FastAPI router endpoints & mounting
 │   ├── ingest.py            # Document loading & character chunking
-│   ├── retrieval.py         # REST batching, FAISS, BM25, RRF, Reranker
+│   ├── retrieval.py         # REST batching, Qdrant, BM25, RRF, Reranker
 │   ├── agent_router.py      # Query decomposition & routing logic
 │   └── generation.py        # LCEL chain, prompt context, self-consistency
 ├── tests/                   # Verification suite

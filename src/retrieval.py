@@ -4,7 +4,6 @@ import numpy as np
 from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import FAISS
 # Assuming cross-encoder is available via sentence-transformers
 from sentence_transformers import CrossEncoder
 
@@ -98,7 +97,7 @@ class RESTBatchEmbeddings(Embeddings):
 
 class HybridRetriever:
     """
-    Production Hybrid Retriever combining Dense (FAISS) and Sparse (BM25)
+    Production Hybrid Retriever combining Dense (Qdrant) and Sparse (BM25)
     with Reciprocal Rank Fusion (RRF) and Cross-Encoder Reranking.
     """
     
@@ -157,22 +156,31 @@ class HybridRetriever:
         else:
             # Load from persistent storage
             print(f"Checking persistent Qdrant collection from '{qdrant_path}'...")
-            if os.path.exists(qdrant_path):
-                # Verify collection exists
-                collections = self.qdrant_client.get_collections().collections
-                exists = any(c.name == "sec_filings" for c in collections)
-                if not exists:
-                    raise FileNotFoundError(f"Collection 'sec_filings' not found in Qdrant database at {qdrant_path}")
-            else:
-                raise FileNotFoundError(f"Persistent Qdrant database not found at {qdrant_path}. Please run the ingestion script first.")
-                
-            print(f"Loading persistent BM25 index from '{bm25_path}'...")
-            if os.path.exists(bm25_path):
-                with open(bm25_path, "rb") as f:
-                    self.sparse_retriever = pickle.load(f)
-                self.sparse_retriever.k = 10
-            else:
-                raise FileNotFoundError(f"Persistent BM25 index file not found at {bm25_path}. Please run the ingestion script first.")
+            try:
+                if os.path.exists(qdrant_path):
+                    # Verify collection exists
+                    collections = self.qdrant_client.get_collections().collections
+                    exists = any(c.name == "sec_filings" for c in collections)
+                    if not exists:
+                        raise FileNotFoundError(f"Collection 'sec_filings' not found in Qdrant database at {qdrant_path}")
+                else:
+                    raise FileNotFoundError(f"Persistent Qdrant database not found at {qdrant_path}. Please run the ingestion script first.")
+                    
+                print(f"Loading persistent BM25 index from '{bm25_path}'...")
+                if os.path.exists(bm25_path):
+                    with open(bm25_path, "rb") as f:
+                        self.sparse_retriever = pickle.load(f)
+                    self.sparse_retriever.k = 10
+                else:
+                    raise FileNotFoundError(f"Persistent BM25 index file not found at {bm25_path}. Please run the ingestion script first.")
+            except Exception as e:
+                # Release file lock before raising
+                if hasattr(self, 'qdrant_client') and self.qdrant_client is not None:
+                    try:
+                        self.qdrant_client.close()
+                    except Exception:
+                        pass
+                raise e
         
         # 3. Initialize Cross-Encoder
         # Best tradeoff between performance and latency

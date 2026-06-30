@@ -182,9 +182,9 @@ We explicitly added `langchain-experimental` and `langchain-community` to the `p
 ### Q7: Why did the live Vercel deployment link display mock responses even after the backend was fully operational?
 
 **Answer:**
-Vercel is a serverless platform. To bypass Vercel's strict 250MB deployment size limit (which prevents installing massive packages like PyTorch and FAISS), Vercel's backend functions are mapped to a mocked handler in `api/chat.py`. 
+Vercel is a serverless platform. To bypass Vercel's strict 250MB deployment size limit (which prevents installing massive packages like PyTorch and sentence-transformers), Vercel's backend functions are mapped to a mocked handler in `api/chat.py`. 
 
-To allow users to access the real RAG backend from the Vercel link, we updated `public/script.js` to dynamically identify the browser hostname. When accessed locally, it queries localhost. When hosted in production on Vercel, it routes requests directly to the live Hugging Face Space backend (which is fully capable of running PyTorch and FAISS).
+To allow users to access the real RAG backend from the Vercel link, we updated `public/script.js` to dynamically identify the browser hostname. When accessed locally, it queries localhost. When hosted in production on Vercel, it routes requests directly to the live Hugging Face Space backend (which is fully capable of running PyTorch, sentence-transformers, and Qdrant).
 
 #### Code Changes in `public/script.js`:
 ```diff

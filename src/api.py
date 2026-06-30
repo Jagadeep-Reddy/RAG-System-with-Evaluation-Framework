@@ -93,7 +93,7 @@ async def chat_endpoint(request: QueryRequest):
             if len(sub_queries) <= 1:
                 steps = [
                     "Query mapped to standard retriever...",
-                    "FAISS Dense + BM25 Sparse Hybrid search",
+                    "Qdrant Dense + BM25 Sparse Hybrid search",
                     "Cross-Encoder re-ranking top candidates...",
                     "Generating final answer with citations."
                 ]
@@ -135,7 +135,7 @@ async def chat_endpoint(request: QueryRequest):
     else:
         steps = [
             "Query mapped to standard retriever...",
-            "FAISS Approximate Nearest Neighbor Search",
+            "Qdrant Semantic Search",
             "Cross-Encoder re-ranking...",
             "Prompt generation with strict citation framework."
         ]

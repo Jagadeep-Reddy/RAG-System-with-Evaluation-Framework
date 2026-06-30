@@ -44,7 +44,7 @@ async def chat_endpoint(request: QueryRequest):
     else:
         steps = [
             "Query mapped to standard retriever...",
-            "FAISS Approximate Nearest Neighbor Search",
+            "Qdrant Semantic Search",
             "Cross-Encoder re-ranking...",
             "Prompt generation with strict citation framework."
         ]
